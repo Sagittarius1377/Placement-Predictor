@@ -1,3 +1,5 @@
+# libraries needed:
+
 import numpy as np
 import pickle
 from config import NEW_DATA_INPUT_FEATURES_NAME, PLACEMENT_EQUALS_1_PRIOR
@@ -6,8 +8,26 @@ from fastapi import FastAPI, Query
 from typing import Annotated
 from pydantic import BaseModel
 
+'''
+Posterior probability is defined as  Updated probability after seeing evidence or what I want to find.
+Prior Probability = My belief before seeing new data , based on past data
+Likelihood = How likely the evidence is if the hypothesis is true
+Evidence = Probability of seeing the evidence overall , Acts as a normalizing constant
+
+Posterior probability = (Likelihood * Prior probability ) / Evidence
+posterior probability : P(A∣B) = P(B∣A).P(A) / P(B)
+
+
+                              n
+Expanded form of P(B): P(B)=  ∑ P(B∣Ai).P(Ai)
+                             i=1     
+
+'''
+
+
+
 def determine_normalizing_probability(placement_equals_0_likelihood, placement_equals_1_likelihood):
-    return (placement_equals_0_likelihood * (1 - PLACEMENT_EQUALS_1_PRIOR)) +\
+    return (placement_equals_0_likelihood * (1 - PLACEMENT_EQUALS_1_PRIOR)) + \
         (placement_equals_1_likelihood * PLACEMENT_EQUALS_1_PRIOR)
 
 def determine_placement_posterior_probability(input_features):
@@ -38,29 +58,37 @@ def determine_placement_posterior_probability(input_features):
     placement_equals_0_posterior = placement_equals_0_likelihood * (1 - PLACEMENT_EQUALS_1_PRIOR) / normalizing_probability
     placement_equals_1_posterior = placement_equals_1_likelihood * PLACEMENT_EQUALS_1_PRIOR / normalizing_probability
 
+    print(placement_equals_0_likelihood, placement_equals_1_likelihood, normalizing_probability)
+
     if placement_equals_1_posterior[0] > placement_equals_0_posterior[0]:
         return {"result":"Given your inputs, most likeliy you are going to get placed and the probability of you getting placed is roughly {}".format(placement_equals_1_posterior[0])}
     else:
         return {"result":"Given your inputs, most likely you are not going to get placed and the probability of you getting placed is roughly {}".format(placement_equals_1_posterior[0])}
 
 
+# schema
 class InputFeatureVector(BaseModel):
     iq: Annotated[int, Query(ge=40, le=160)]
     previous_semester_result: Annotated[float, Query(ge=0.0, le=10.0)]
     cgpa: Annotated[float, Query(ge=0.0, le=10.0)]
     communication_skills: Annotated[int, Query(ge=0, le=10)]
     projects_completed: Annotated[int, Query(ge=0, le=5)]
-    
+
 app = FastAPI()
+
 @app.get("/")
+
 def home_page():
     return "This Web API tells the probability of a student getting placed based on his/her IQ, previous semester result, CGPA, communication skills and number of projects completed."
+
 
 @app.post("/compute_probability")
 
 def compute_probability(input_features: InputFeatureVector):
     input_features_values_list = list()
-    for input_feature_name ,input_features_values in input_features.model_fields.items():
+    for input_feature_name ,input_features_values in InputFeatureVector.model_fields.items():
         input_features_values_list.append(getattr(input_features, input_feature_name))
     
-    return determine_placement_posterior_probability(input_features_values_list)
+    response = determine_placement_posterior_probability(input_features_values_list)
+
+    return response
